@@ -6,13 +6,17 @@
 #include <signal_path/signal_path.h>
 #include <module.h>
 #include <filesystem>
-#include <dsp/pll.h>
+#include <dsp/loop/pll.h>
 #include <dsp/stream.h>
-#include <dsp/demodulator.h>
-#include <dsp/window.h>
-#include <dsp/resampling.h>
-#include <dsp/processing.h>
-#include <dsp/routing.h>
+//#include <dsp/demodulator.h>  !!!
+#include <dsp/demod/am.h>
+//#include <dsp/window.h> !!!
+#include <dsp/window/hamming.h>
+//#include <dsp/resampling.h> !!!
+//#include <dsp/processing.h> !!!
+#include <dsp/processor.h>
+//#include <dsp/routing.h>!!!
+#include <dsp/routing/stream_link.h>
 #include <dsp/sink.h>
 #include <gui/widgets/folder_select.h>
 #include <gui/widgets/symbol_diagram.h>

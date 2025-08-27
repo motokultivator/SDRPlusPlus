@@ -2,10 +2,22 @@
 #include <dsp/block.h>
 #include <dsp/stream.h>
 #include <dsp/types.h>
-#include <dsp/routing.h>
-#include <dsp/demodulator.h>
+//!!!#include <dsp/routing.h>
+#include <dsp/routing/stream_link.h>
+#include <dsp/routing/doubler.h>
+//!!!#include <dsp/demodulator.h>
+#include <dsp/demod/am.h>
+#include <dsp/demod/fm.h>
+#include <dsp/block.h>
+#include <dsp/hier_block.h>
+//#include <dsp/taps/tap.h>
+#include <dsp/filter/fir.h>
+#include <dsp/clock_recovery/mm.h>
 #include <dsp/sink.h>
+#include <dsp/sink/handler_sink.h>
+
 #include <utils/flog.h>
+
 
 extern "C" {
 #include <correct.h>
@@ -110,7 +122,7 @@ namespace kgsstv {
     //     dsp::stream<float>* _in;
     // };
 
-    class Deframer : public dsp::generic_block<Deframer> {
+    class Deframer : public dsp::block {
     public:
         Deframer() {}
 
@@ -123,19 +135,19 @@ namespace kgsstv {
             conv = correct_convolutional_create(2, 7, kgsstv_polynomial);
             memset(convTmp, 0x00, 1024);
 
-            dsp::generic_block<Deframer>::registerInput(_in);
-            dsp::generic_block<Deframer>::registerOutput(&out);
-            dsp::generic_block<Deframer>::_block_init = true;
+            dsp::block::registerInput(_in);
+            dsp::block::registerOutput(&out);
+            dsp::block::_block_init = true;
         }
 
         void setInput(dsp::stream<float>* in) {
-            assert(dsp::generic_block<Deframer>::_block_init);
-            std::lock_guard<std::mutex> lck(dsp::generic_block<Deframer>::ctrlMtx);
-            dsp::generic_block<Deframer>::tempStop();
-            dsp::generic_block<Deframer>::unregisterInput(_in);
+            assert(dsp::block::_block_init);
+           //!!! std::lock_guard<std::mutex> lck(dsp::block::ctrlMtx); ovo je valjda sad u startu
+            dsp::block::tempStop();
+            dsp::block::unregisterInput(_in);
             _in = in;
-            dsp::generic_block<Deframer>::registerInput(_in);
-            dsp::generic_block<Deframer>::tempStart();
+            dsp::block::registerInput(_in);
+            dsp::block::tempStart();
         }
 
         int run() {
@@ -223,7 +235,7 @@ namespace kgsstv {
         int framesWritten = 0;
     };
 
-    class Decoder : public dsp::generic_hier_block<Decoder> {
+    class Decoder : public dsp::hier_block {
     public:
         Decoder() {}
 
@@ -234,8 +246,10 @@ namespace kgsstv {
         void init(dsp::stream<dsp::complex_t>* input, float sampleRate) {
             _sampleRate = sampleRate;
 
-            demod.init(input, _sampleRate, KGSSTV_DEVIATION);
-            rrc.init(31, _sampleRate, KGSSTV_BAUDRATE, KGSSTV_RRC_ALPHA);
+            //!!!demod.init(input, _sampleRate, KGSSTV_DEVIATION);
+            demod.init(input, _sampleRate, KGSSTV_DEVIATION,false,false);
+            //!!!!!rrc.init(31, _sampleRate, KGSSTV_BAUDRATE, KGSSTV_RRC_ALPHA);
+            //TODO:
             fir.init(&demod.out, &rrc);
             recov.init(&fir.out, _sampleRate / KGSSTV_BAUDRATE, 1e-6f, 0.01f, 0.01f);
             doubler.init(&recov.out);
@@ -245,34 +259,41 @@ namespace kgsstv {
             ns2.init(&deframer.out, "kgsstv_out.bin");
             diagOut = &doubler.outB;
 
-            dsp::generic_hier_block<Decoder>::registerBlock(&demod);
-            dsp::generic_hier_block<Decoder>::registerBlock(&fir);
-            dsp::generic_hier_block<Decoder>::registerBlock(&recov);
-            dsp::generic_hier_block<Decoder>::registerBlock(&doubler);
+            dsp::hier_block::registerBlock(&demod);
+            dsp::hier_block::registerBlock(&fir);
+            dsp::hier_block::registerBlock(&recov);
+            dsp::hier_block::registerBlock(&doubler);
             //dsp::generic_hier_block<Decoder>::registerBlock(&slicer);
-            dsp::generic_hier_block<Decoder>::registerBlock(&deframer);
-            dsp::generic_hier_block<Decoder>::registerBlock(&ns2);
+            dsp::hier_block::registerBlock(&deframer);
+            dsp::hier_block::registerBlock(&ns2);
 
-            dsp::generic_hier_block<Decoder>::_block_init = true;
+            dsp::hier_block::_block_init = true;
         }
 
         void setInput(dsp::stream<dsp::complex_t>* input) {
-            assert(dsp::generic_hier_block<Decoder>::_block_init);
+            assert(dsp::hier_block::_block_init);
             demod.setInput(input);
         }
 
         dsp::stream<float>* diagOut = NULL;
 
     private:
-        dsp::FloatFMDemod demod;
-        dsp::RRCTaps rrc;
-        dsp::FIR<float> fir;
-        dsp::MMClockRecovery<float> recov;
-        dsp::StreamDoubler<float> doubler;
+        //dsp::demodFloatFMDemod demod;
+        dsp::demod::FM<float> demod;
+        //!!!dsp::RRCTaps rrc;
+        dsp::tap<float> rrc;
+        //!!!dsp::FIR<float> fir;
+        dsp::filter::FIR<float,float> fir;
+        //!!!dsp::MMClockRecovery<float> recov;
+        dsp::clock_recovery::MM<float> recov;
+        //!!!dsp::StreamDoubler<float> doubler;
+        dsp::routing::Doubler<float> doubler;
 
         // Slice4FSK slicer;
         Deframer deframer;
-        dsp::FileSink<uint8_t> ns2;
+        //!!!dsp::FileSink<uint8_t> ns2;
+        dsp::sink::Handler<uint8_t> ns2;
+
 
 
         float _sampleRate;
