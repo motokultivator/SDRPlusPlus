@@ -15,6 +15,8 @@
 #include <dsp/clock_recovery/mm.h>
 #include <dsp/sink.h>
 #include <dsp/sink/handler_sink.h>
+#include <dsp/sink/null_sink.h>
+#include <dsp/buffer/reshaper.h>
 
 #include <utils/flog.h>
 
@@ -205,7 +207,8 @@ namespace kgsstv {
                         // Decode convolutional code
                         int convOutCount = correct_convolutional_decode_soft(conv, convTmp, 124, out.writeBuf);
 
-                        flog::warn("Frames written: {0}, frameBytes: {1}", ++framesWritten, convOutCount);
+
+                        flog::warn("Frames written: {0}, frameBytes: {1} {2} {3} {4} {5} {6} {7} {8} {9}", ++framesWritten, convOutCount, out.writeBuf[0],out.writeBuf[1],out.writeBuf[2],out.writeBuf[3],out.writeBuf[4],out.writeBuf[5],out.writeBuf[6],out.writeBuf[7]);
                         if (!out.swap(7)) {
                             _in->flush();
                             return -1;
@@ -249,14 +252,19 @@ namespace kgsstv {
             //!!!demod.init(input, _sampleRate, KGSSTV_DEVIATION);
             demod.init(input, _sampleRate, KGSSTV_DEVIATION,false,false);
             //!!!!!rrc.init(31, _sampleRate, KGSSTV_BAUDRATE, KGSSTV_RRC_ALPHA);
+            int interpPhaseCount = 128;
+            int interpTapCount = 8;
+            dsp::tap<float> rrc = dsp::taps::windowedSinc<float>(interpPhaseCount * interpTapCount, dsp::math::hzToRads(0.5 / (double)interpPhaseCount, 1.0), dsp::window::nuttall, interpPhaseCount);
+
             //TODO:
-            fir.init(&demod.out, &rrc);
+            fir.init(&demod.out, rrc);
             recov.init(&fir.out, _sampleRate / KGSSTV_BAUDRATE, 1e-6f, 0.01f, 0.01f);
             doubler.init(&recov.out);
 
             //slicer.init(&doubler.outA);
             deframer.init(&doubler.outA);
-            ns2.init(&deframer.out, "kgsstv_out.bin");
+            //ns2.init(&deframer.out, "kgsstv_out.bin");
+            ns2.init(&deframer.out);
             diagOut = &doubler.outB;
 
             dsp::hier_block::registerBlock(&demod);
@@ -292,7 +300,7 @@ namespace kgsstv {
         // Slice4FSK slicer;
         Deframer deframer;
         //!!!dsp::FileSink<uint8_t> ns2;
-        dsp::sink::Handler<uint8_t> ns2;
+        dsp::sink::Null<uint8_t> ns2;
 
 
 

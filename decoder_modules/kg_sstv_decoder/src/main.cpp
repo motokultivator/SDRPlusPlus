@@ -153,8 +153,15 @@ private:
     }
 
     static void _diagHandler(float* data, int count, void* ctx) {
+        char baferina[3000];
         M17DecoderModule* _this = (M17DecoderModule*)ctx;
         float* buf = _this->diag.acquireBuffer();
+        flog::warn("diag Handler frameBytes: {0} pocetak {1} {2} {3} {4} {5} {6} ", count, data[0],data[1],data[2],data[3],data[4],data[5]);
+        for (int i=0;i<count;i++)
+            baferina[3*i] = baferina[3*i+1] = baferina[3*i+2] = 200.0*((data[i]+1024.0)/2048.0);
+        FILE *file = fopen("dump_sstv", "ab");
+        fwrite(baferina, 3*count, 1, file);
+        fclose(file);
         memcpy(buf, data, count * sizeof(float));
         _this->diag.releaseBuffer();
     }
@@ -166,8 +173,8 @@ private:
     VFOManager::VFO* vfo;
     kgsstv::Decoder decoder;
 
-    dsp::Reshaper<float> reshape;
-    dsp::HandlerSink<float> diagHandler;
+    dsp::buffer::Reshaper<float> reshape;
+    dsp::sink::Handler<float> diagHandler;
     dsp::stream<float> dummy;
 
     ImGui::SymbolDiagram diag;
